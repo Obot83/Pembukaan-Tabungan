@@ -1,0 +1,1259 @@
+
+
+
+
+
+
+
+
+PRODUCT REQUIREMENT DOCUMENT (PRD)
+MODUL E-COLLECT MODUL PEMBUKAAN TABUNGAN
+BANK IMA
+
+Petugas Lapangan / Collection BPRCapture & Initiate → CBS Validate, Approve & Create Account
+
+
+
+
+No Dokumen
+:
+PRD-TOP/
+Tanggal
+:
+10 Septermber 2026
+Dokumen Versi
+:
+v.1.0
+Disusun Oleh
+:
+Deni Permana Riyadi
+Kalsifikasi Dokumen
+:
+CONFIDENTIAL / RAHASIA PERUSAHAAN (Internal & Klien)
+
+
+
+
+
+
+
+
+
+
+
+
+
+DOKUMEN REVISI
+
+
+
+Versi #
+
+
+Tanggal
+
+
+Direvisi Oleh
+
+
+Histori Revisi
+
+
+v.1.0
+
+
+01/10/20206
+
+
+
+
+
+Versi Awal
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Contents
+	 TOC \o "1-3" \h \z \u DOKUMEN REVISI	 PAGEREF _Toc241744148 \h 2
+		1.	Executive Summary & Latar Belakang	 PAGEREF _Toc241744149 \h 4
+		1.1.	Tujuan Dokumen	 PAGEREF _Toc241744150 \h 4
+		1.2.	Latar Belakang	 PAGEREF _Toc241744151 \h 4
+		2.	Ruang Lingkup	 PAGEREF _Toc241744152 \h 4
+		2.1.	Dalam Ruang Lingkup	 PAGEREF _Toc241744153 \h 4
+		2.2.	Diluar Ruang Lingkup	 PAGEREF _Toc241744154 \h 4
+		3.	Aktor & Tanggung Jawab	 PAGEREF _Toc241744155 \h 5
+		4.	Alur Pengguna	 PAGEREF _Toc241744156 \h 5
+		5.	Persyaratan Fungsional	 PAGEREF _Toc241744157 \h 5
+		6.	Data Inputan Minimum	 PAGEREF _Toc241744158 \h 6
+		7.	Status	 PAGEREF _Toc241744159 \h 6
+		8.	Detail Alur Proses Pembukaan Tabungan	 PAGEREF _Toc241744160 \h 7
+		9.	UI/UX	 PAGEREF _Toc241744161 \h 9
+		10.	Aturan Validasi	 PAGEREF _Toc241744162 \h 9
+		11.	Persyaratan Non Funsional	 PAGEREF _Toc241744163 \h 10
+		12.	Kriteria Penerimaan	 PAGEREF _Toc241744164 \h 10
+		13.	Baseline UAT	 PAGEREF _Toc241744165 \h 10
+		14.	Report & Monitoring	 PAGEREF _Toc241744166 \h 11
+		15.	Poin Terbuka / Catatan Keputusan	 PAGEREF _Toc241744167 \h 11
+		16.	Lampiran	 PAGEREF _Toc241744168 \h 11
+	7. Dokumen Pengajuan & Persetujuan	 PAGEREF _Toc241744169 \h 12
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Executive Summary & Latar Belakang
+Tujuan Dokumen
+PRD ini mendefinisikan kebutuhan modul Pembukaan Tabungan pada aplikasi E-Collect yang digunakan Petugas Lapangan/Collection BPR untuk membuka tabungan secara jemput bola oleh petugas collection.
+E-Collect difokuskan pada capture dan inisiasi proses. Kompleksitas KYC, CIF, approval, penerbitan rekening, dan posting transaksi tetap berada pada CBS/Back Office.
+Latar Belakang
+Petugas perlu melakukan pembukaan rekening di lokasi nasabah seperti pasar tanpa membawa proses administrasi CBS ke lapangan.
+Input manual yang terlalu banyak meningkatkan waktu dan risiko kesalahan.
+Data identitas dapat dipercepat melalui OCR e-KTP, sedangkan tanda tangan dilakukan langsung oleh nasabah menggunakan stylus.
+Ruang Lingkup
+Dalam Ruang Lingkup
+Menu Buka Tabungan Baru
+Pilih produk dan input No. HP
+Foto e-KTP
+OCR identitas
+Review/koreksi hasil OCR
+Tanda tangan digital dengan stylus
+Input nominal setoran awal
+Review pengajuan
+GPS & timestamp
+Submit API
+Pending Approval
+Receive Approved/Rejected
+Tampilkan nomor rekening/alasan reject
+Riwayat pengajuan
+Diluar Ruang Lingkup
+KYC lengkap di E-Collect
+Maintenance CIF
+Duplicate checking
+Approval rekening di E-Collect
+Penerbitan nomor rekening oleh E-Collect
+Posting transaksi langsung ke rekening oleh E-Collect
+Master data CBS
+Aktor & Tanggung Jawab
+Aktor
+Tanggung Jawab
+Petugas Lapangan/Collection
+Capture data, OCR, koreksi, signature, setoran awal, review, submit, melihat status.
+Nasabah
+Memberikan e-KTP/data dan tanda tangan menggunakan stylus.
+Teller/Back Office
+Verifikasi data/KYC/CIF, approval/reject, penerbitan rekening di CBS.
+CBS
+System of record untuk KYC, CIF, approval, nomor rekening, dan posting.
+Integration/API
+Meneruskan request dan response antara E-Collect dan CBS.
+Alur Pengguna
+Step
+Proses
+1
+Buka Tabungan Baru
+2
+Pilih Produk & Kontak — pilih Produk Tabungan, input No. HP, dan Tujuan Pembukaan Rekening
+3
+Foto e-KTP — capture, preview, dan retake jika diperlukan
+4
+OCR e-KTP — sistem mengekstraksi NIK, Nama Lengkap, Tempat Lahir, Tanggal Lahir, Jenis Kelamin, Agama, dan Alamat KTP
+5
+Review & Koreksi Hasil OCR — petugas memeriksa dan dapat mengoreksi hasil OCR
+6
+Input Data Tambahan Nasabah — Golongan Darah, Status Perkawinan, Pekerjaan, Kewarganegaraan, Penghasilan, Pendidikan Terakhir, Nama Ibu Kandung
+7
+Lengkapi Alamat KTP — Alamat, RT/RW, Kelurahan/Desa, Kecamatan, Kota/Kabupaten, Provinsi, Kode Pos
+8
+Lengkapi Alamat Domisili — pilih Sesuai KTP: Ya/Tidak; jika tidak, input alamat domisili
+9
+Tanda Tangan Digital — nasabah melakukan tanda tangan menggunakan stylus/touch
+10
+Input Setoran Awal — Nominal Setoran Awal dan Sumber Dana Setoran
+11
+Review Pengajuan — petugas memeriksa seluruh data, dokumen, signature, dan setoran
+12
+Submit Pengajuan — sistem mengambil GPS + timestamp dan mengirim pengajuan
+13
+TOP Operator Validasi & Simpan — generate Reference Number, simpan data MongoDB, dokumen S3, audit log, kemudian status PENDING_APPROVAL
+14
+Integration/API Mengirim Pengajuan ke CBS — mapping dan transform data E-Collect ke format CBS
+15
+Teller/Back Office Verifikasi di CBS — validasi data nasabah, KYC/CIF, dokumen, duplicate check, dan ketentuan produk
+16
+Hasil Verifikasi CBS — Approve atau Reject
+17A
+Jika Approve — CBS membuat nomor rekening, melakukan aktivasi rekening, dan memproses posting setoran awal
+17B
+Jika Reject — CBS menyimpan status REJECTED dan alasan penolakan
+18
+E-Collect Menerima Hasil — status, nomor rekening atau alasan penolakan dikirim kembali ke E-Collect
+19A
+Rekening Aktif — nomor rekening tersedia, setoran awal terposting, dan SMS/notifikasi dikirim ke nasabah
+19B
+Pengajuan Ditolak — status dan alasan penolakan ditampilkan kepada petugas
+Persyaratan Fungsional
+Pembukaan Pengajuan Tabungan
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-001
+Buka Tabungan Baru
+Petugas Lapangan
+Sistem menyediakan menu Buka Tabungan Baru untuk membuat pengajuan pembukaan rekening tabungan nasabah.
+High
+FR-002
+Generate Reference Number
+System
+Sistem membuat Reference Number unik untuk setiap pengajuan.
+High
+FR-003
+Produk Tabungan
+Petugas Lapangan
+Sistem menampilkan daftar produk tabungan aktif yang bersumber dari CBS/Product Master.
+High
+FR-004
+Nomor Handphone
+Petugas Lapangan
+Petugas dapat memasukkan nomor handphone nasabah sebagai data kontak.
+High
+FR-005
+Tujuan Pembukaan Rekening
+Petugas Lapangan
+Petugas dapat mengisi tujuan pembukaan rekening sesuai parameter/kebutuhan BPR.
+Medium
+Capture e-KTP
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-006
+Capture e-KTP
+Petugas Lapangan
+Sistem menyediakan akses kamera untuk mengambil foto e-KTP nasabah.
+High
+FR-007
+Preview e-KTP
+Petugas Lapangan
+Setelah foto diambil, sistem menampilkan preview foto KTP sebelum diproses.
+High
+FR-008
+Retake e-KTP
+Petugas Lapangan
+Petugas dapat mengambil ulang foto apabila hasil capture tidak jelas/tidak sesuai.
+High
+FR-009
+Penyimpanan Dokumen KTP
+System
+Sistem menyimpan referensi dokumen foto e-KTP pada storage yang ditentukan dan menghubungkannya dengan Reference Number.
+High
+OCR e-KTP
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-010
+OCR e-KTP
+System
+Sistem melakukan OCR terhadap foto e-KTP yang telah diambil.
+High
+FR-011
+OCR NIK
+System
+Sistem mengekstraksi NIK dari e-KTP.
+High
+FR-012
+OCR Nama
+System
+Sistem mengekstraksi Nama Lengkap dari e-KTP.
+High
+FR-013
+OCR Tempat Lahir
+System
+Sistem mengekstraksi Tempat Lahir dari e-KTP.
+High
+FR-014
+OCR Tanggal Lahir
+System
+Sistem mengekstraksi Tanggal Lahir dari e-KTP.
+High
+FR-015
+OCR Jenis Kelamin
+System
+Sistem mengekstraksi Jenis Kelamin dari e-KTP.
+High
+FR-016
+OCR Agama
+System
+Sistem mengekstraksi Agama dari e-KTP.
+High
+FR-017
+OCR Alamat
+System
+Sistem mengekstraksi Alamat KTP dari e-KTP.
+High
+FR-018
+Review Hasil OCR
+Petugas Lapangan
+Sistem menampilkan hasil OCR kepada petugas untuk diperiksa sebelum data digunakan dalam pengajuan.
+High
+FR-019
+Koreksi Hasil OCR
+Petugas Lapangan
+Petugas dapat mengoreksi hasil OCR apabila terdapat kesalahan pembacaan.
+High
+FR-020
+Simpan Hasil OCR
+System
+Sistem menyimpan hasil OCR beserta data hasil koreksi sebagai bagian dari data pengajuan.
+High
+Data Tambahan Nasabah
+Setelah hasil OCR diperiksa, petugas melengkapi data tambahan yang diperlukan.
+	
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-021
+Golongan Darah
+Petugas
+Petugas dapat mengisi Golongan Darah sesuai kebutuhan BPR.
+Medium
+FR-022
+Status Perkawinan
+Petugas
+Petugas dapat memilih Status Perkawinan.
+High
+FR-023
+Pekerjaan
+Petugas
+Petugas dapat memilih/mengisi Pekerjaan nasabah.
+High
+FR-024
+Kewarganegaraan
+Petugas
+Petugas dapat memilih Kewarganegaraan nasabah.
+Medium
+FR-025
+Penghasilan
+Petugas
+Petugas dapat mengisi atau memilih nilai Penghasilan sesuai parameter BPR.
+High
+FR-026
+Pendidikan Terakhir
+Petugas
+Petugas dapat memilih Pendidikan Terakhir nasabah.
+Medium
+FR-027
+Nama Ibu Kandung
+Petugas
+Petugas dapat memasukkan Nama Ibu Kandung.
+High
+
+Alamat KTP
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-028
+Alamat Lengkap
+Petugas
+Sistem menampilkan alamat hasil OCR dan memungkinkan petugas melakukan koreksi/pelengkapan.
+High
+FR-029
+RT/RW
+Petugas
+Petugas dapat mengisi atau mengoreksi RT dan RW.
+High
+FR-030
+Kelurahan/Desa
+Petugas
+Petugas dapat mengisi atau memilih Kelurahan/Desa.
+High
+FR-031
+Kecamatan
+Petugas
+Petugas dapat mengisi atau memilih Kecamatan.
+High
+FR-032
+Kota/Kabupaten
+Petugas
+Petugas dapat mengisi atau memilih Kota/Kabupaten.
+High
+FR-033
+Provinsi
+Petugas
+Petugas dapat mengisi atau memilih Provinsi.
+High
+FR-034
+Kode Pos
+Petugas
+Petugas dapat mengisi Kode Pos.
+High
+Alamat Domisili
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-035
+Konfirmasi Domisili
+Petugas
+Sistem menyediakan pilihan Alamat Domisili Sesuai KTP: Ya/Tidak.
+High
+FR-036
+Domisili Sama dengan KTP
+System
+Jika petugas memilih Ya, sistem menggunakan data alamat KTP sebagai alamat domisili tanpa meminta input ulang.
+High
+FR-037
+Domisili Berbeda
+Petugas
+Jika petugas memilih Tidak, sistem menampilkan form alamat domisili.
+High
+FR-038
+Input Alamat Domisili
+Petugas
+Petugas dapat mengisi alamat lengkap, RT/RW, Kelurahan/Desa, Kecamatan, Kota/Kabupaten, Provinsi, dan Kode Pos.
+High
+
+Tanda Tangan Digital
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-039
+Signature Pad
+Nasabah
+Sistem menyediakan area tanda tangan digital menggunakan stylus/touchscreen.
+High
+FR-040
+Clear Signature
+Nasabah/Petugas
+Sistem menyediakan fungsi untuk menghapus dan mengulang tanda tangan.
+Medium
+FR-041
+Preview Signature
+Petugas
+Sistem menampilkan hasil tanda tangan sebelum pengajuan dikirim.
+High
+FR-042
+Penyimpanan Signature
+System
+Sistem menyimpan signature image dan metadata signature yang terkait dengan Reference Number.
+High
+FR-043
+Signature Metadata
+System
+Sistem menyimpan signed_at, collector_id, dan device_id.
+High
+Setoran Awal
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-044
+Input Setoran Awal
+Petugas
+Petugas dapat memasukkan nominal setoran awal nasabah.
+High
+FR-045
+Sumber Dana
+Petugas
+Petugas dapat memilih/mengisi Sumber Dana Setoran.
+High
+FR-046
+Validasi Setoran
+System
+Sistem melakukan validasi nominal setoran berdasarkan ketentuan produk yang diterima dari CBS/parameter BPR.
+High
+FR-047
+Penyimpanan Setoran
+System
+Sistem menyimpan nominal dan sumber dana sebagai bagian dari pengajuan.
+High
+
+Status & Riwayat Pengajuan
+ID
+Fitur
+Aktor
+Persyaratan Fungsional
+Prioritas
+FR-085
+Status Pengajuan
+Petugas
+Petugas dapat melihat status terkini pengajuan.
+High
+FR-086
+Approved Result
+Petugas
+Jika approved, sistem menampilkan nomor rekening dan informasi rekening aktif.
+High
+FR-087
+Rejected Result
+Petugas
+Jika rejected, sistem menampilkan alasan penolakan.
+High
+FR-088
+History
+Petugas
+Petugas dapat melihat riwayat pengajuan berdasarkan Reference Number.
+Medium
+FR-089
+Status History
+System
+Sistem menyimpan seluruh perubahan status beserta timestamp dan actor.
+High
+
+Data Inputan 
+Data Produk & Kontak
+No
+Field
+Tipe
+Source
+Mandatory
+Keterangan
+1
+Produk Tabungan
+Dropdown
+CBS
+Ya
+Produk tabungan aktif dari CBS
+2
+No. Handphone
+Text/Number
+Petugas
+Ya
+Nomor handphone nasabah
+3
+Tujuan Pembukaan Rekening
+Dropdown/Text
+Petugas
+Sesuai BPR
+Tujuan pembukaan rekening
+Foto e-KTP
+No
+Field
+Tipe
+Source
+Mandatory
+Keterangan
+1
+Foto e-KTP
+Image
+Camera
+Ya
+Foto KTP nasabah
+2
+Preview Foto KTP
+Image
+System
+Ya
+Menampilkan hasil capture
+3
+Retake Foto KTP
+Action
+Petugas
+Tidak
+Mengambil ulang foto jika tidak jelas
+Data Hasil OCR e-KTP
+No
+Field
+Tipe
+Source
+Mandatory
+Editable
+1
+NIK
+Text
+OCR KTP
+Ya
+Ya
+2
+Nama Lengkap
+Text
+OCR KTP
+Ya
+Ya
+3
+Tempat Lahir
+Text
+OCR KTP
+Ya
+Ya
+4
+Tanggal Lahir
+Date
+OCR KTP
+Ya
+Ya
+5
+Jenis Kelamin
+Dropdown
+OCR KTP
+Ya
+Ya
+6
+Agama
+Dropdown
+OCR KTP
+Ya
+Ya
+7
+Alamat KTP
+Textarea
+OCR KTP
+Ya
+Ya
+Data Tambahan Nasabah
+Data ini diisi oleh petugas berdasarkan informasi dari nasabah dan kebutuhan BPR
+No
+Field
+Tipe
+Source
+Mandatory
+Keterangan
+1
+Alamat Lengkap
+Textarea
+OCR + Petugas
+Ya
+Hasil OCR dapat dikoreksi
+2
+RT
+Text
+Petugas/Koreksi
+Sesuai CBS
+RT alamat KTP
+3
+RW
+Text
+Petugas/Koreksi
+Sesuai CBS
+RW alamat KTP
+4
+Kelurahan/Desa
+Dropdown/Text
+Petugas/Koreksi
+Sesuai CBS
+Wilayah administrasi
+5
+Kecamatan
+Dropdown/Text
+Petugas/Koreksi
+Sesuai CBS
+Wilayah administrasi
+6
+Kota/Kabupaten
+Dropdown/Text
+Petugas/Koreksi
+Sesuai CBS
+Wilayah administrasi
+7
+Provinsi
+Dropdown/Text
+Petugas/Koreksi
+Sesuai CBS
+Wilayah administrasi
+8
+Kode Pos
+Text
+Petugas/Koreksi
+Sesuai CBS
+Kode pos
+Alamat Domisili
+No
+Field
+Tipe
+Source
+Mandatory
+Keterangan
+1
+Domisili Sesuai KTP
+Radio/Toggle
+Petugas
+Ya
+Ya / Tidak
+2
+Alamat Domisili
+Textarea
+Petugas/System
+Jika berbeda
+Alamat lengkap
+3
+RT
+Text
+Petugas
+Jika berbeda
+RT
+4
+RW
+Text
+Petugas
+Jika berbeda
+RW
+5
+Kelurahan/Desa
+Dropdown/Text
+Petugas
+Jika berbeda
+Kelurahan/Desa
+6
+Kecamatan
+Dropdown/Text
+Petugas
+Jika berbeda
+Kecamatan
+7
+Kota/Kabupaten
+Dropdown/Text
+Petugas
+Jika berbeda
+Kota/Kabupaten
+8
+Provinsi
+Dropdown/Text
+Petugas
+Jika berbeda
+Provinsi
+9
+Kode Pos
+Text
+Petugas
+Jika berbeda
+Kode Pos
+Tanda Tangan Digital
+No
+Field
+Tipe
+Source
+Mandatory
+Keterangan
+1
+Signature Image
+Image
+Nasabah
+Ya
+Tanda tangan digital
+2
+Signed At
+Datetime
+System
+Ya
+Waktu tanda tangan
+3
+Signature Object Key
+Text
+System
+Ya
+Referensi file di S3
+4
+Collector ID
+String
+System
+Ya
+Petugas yang melakukan transaksi
+5
+Device ID
+String
+System
+Ya
+Device yang digunakan
+
+
+
+
+Setoran Awal
+Catatan: 
+No
+Field
+Tipe
+Source
+Mandatory
+Keterangan
+1
+Nominal Setoran Awal
+Currency/Number
+Petugas
+Ya
+Nominal setoran
+2
+Sumber Dana Setoran
+Dropdown/Text
+Petugas
+Ya
+Sumber dana
+Nominal Setoran Awal pada E-Collect merupakan data pengajuan. Dana belum dianggap terposting pada saat petugas melakukan input. Posting setoran dilakukan oleh CBS setelah rekening berhasil dibuat/diaktifkan.
+ Data Review & Submit
+Data
+Ditampilkan
+Produk Tabungan
+✓
+No. Handphone
+✓
+Tujuan Pembukaan Rekening
+✓
+Foto KTP
+✓
+Hasil OCR
+✓
+Data Tambahan
+✓
+Alamat KTP
+✓
+Alamat Domisili
+✓
+Signature
+✓
+Nominal Setoran Awal
+✓
+Sumber Dana
+✓
+GPS
+✓
+Timestamp
+✓
+
+
+
+
+
+
+Data Otomatis Sistem
+No
+Field
+Source
+Keterangan
+1
+Reference Number
+System
+Nomor referensi pengajuan
+2
+Collector ID
+Login User
+ID petugas
+3
+Device ID
+Device
+Identitas device
+4
+Latitude
+GPS
+Lokasi saat submit
+5
+Longitude
+GPS
+Lokasi saat submit
+6
+Created At
+System
+Waktu pembuatan
+7
+Submitted At
+System
+Waktu submit
+8
+Status
+System
+Status lifecycle
+9
+OCR Timestamp
+System
+Waktu proses OCR
+10
+KTP Object Key
+System/S3
+Referensi file KTP
+11
+Signature Object Key
+System/S3
+Referensi file signature
+12
+Audit Log
+System
+Aktivitas pengguna/sistem
+Data Hasil dari CBS
+No
+Field
+Source
+Keterangan
+1
+CBS Status
+CBS
+APPROVED / REJECTED
+2
+No. Rekening
+CBS
+Hanya jika approved
+3
+Reject Reason
+CBS
+Jika rejected
+4
+Account Status
+CBS
+Status rekening
+5
+Initial Deposit Result
+CBS
+Hasil posting setoran
+6
+Notification Result
+CBS
+Hasil trigger SMS/notifikasi
+Status 
+Status
+Arti
+Next
+DRAFT
+Belum submit
+SUBMITTED
+SUBMITTED
+Berhasil dikirim
+PENDING_APPROVAL
+PENDING_APPROVAL
+Menunggu CBS
+APPROVED / REJECTED
+APPROVED
+Disetujui CBS
+ACCOUNT_ACTIVE
+REJECTED
+Ditolak CBS
+END / REVISI
+ACCOUNT_ACTIVE
+Rekening aktif
+END
+255815576035
+Detail Alur Proses Pembukaan Tabungan
+
+	
+
+	Gambar 1 Flow Pembukaan Tabungan
+
+	Penjelasan:
+
+	Petugas Lapangan (E-Collect Mobile)
+
+	Proses dimulai di sisi petugas lapangan menggunakan aplikasi mobile: 
+
+	Inisiasi & Input: Petugas memilih menu Buka Tabungan Baru, memilih produk tabungan, serta memasukkan nomor handphone nasabah. 
+
+	Akuisisi Data Identitas: Melakukan pengambilan foto e-KTP melalui kamera, yang langsung diekstrak datanya menggunakan teknologi OCR (Optical Character Recognition). 
+
+	Koreksi & Konfirmasi: Petugas meninjau serta mengoreksi data hasil OCR jika diperlukan, mengambil tanda tangan digital nasabah (menggunakan stylus), dan menginput nominal setoran awal. 
+
+	Review & Submit: Seluruh data nasabah, produk, setoran awal, dokumen, serta tanda tangan diperiksa kembali pada halaman Review Data sebelum disubmit. 
+
+	Tagging Lokasi: Saat proses Submit Pengajuan, sistem aplikasi otomatis merekam metadata GPS & Timestamp. Status transaksi di aplikasi E-Collect berubah menjadi PENDING APPROVAL. 
+
+	TOP Operator - E-Collect (MongoDB)
+
+	Layer ini bertindak sebagai middleware backend / penampung data operasional: 
+
+	Terima Pengajuan: Sistem menerima payload pengajuan, memvalidasi data, lalu menyimpan file dokumen serta menetapkan status awal PENDING APPROVAL. 
+
+	Database MongoDB: Menyimpan data pengajuan secara terstruktur/dokumen, meliputi: data pengajuan, hasil OCR, gambar tanda tangan (signature image), nominal setoran awal, GPS & timestamp, serta audit log transaksi. 
+
+	Data pengajuan kemudian diteruskan ke layer integrasi untuk diproses ke CBS. 
+
+	Integration / API
+
+	Layer integrasi bertindak sebagai jembatan penghubung antara sistem E-Collect dan Core Banking: 
+
+	Tugas Utama: Melakukan pemetaan data (data mapping), transformasi data, validasi format agar sesuai spesifikasi CBS, pengiriman request ke CBS, serta penanganan respon (response handling). 
+
+	Meneruskan status akhir (berupa nomor rekening atau alasan penolakan) dari CBS kembali ke sistem E-Collect. 
+
+	CBS / Back Office (MySQL) & Teller / Verifikator
+
+	Merupakan sistem perbankan inti tempat validasi akhir dan eksekusi transaksi akuntansi dilakukan: 
+
+	Verifikasi Data: Verifikator/Teller melakukan pengecekan kepatuhan (KYC & CIF), verifikasi keabsahan dokumen, serta pengecekan duplikasi akun. 
+
+	Approval / Decision Point (Hasil Verifikasi?):
+
+Jalur Approve:
+
+Generate No. Rekening: Akun resmi dibuat di CBS, setoran awal otomatis diposting (ledger posting), dan SMS notifikasi dipicu ke nasabah. 
+
+Kirim Notifikasi ke E-Collect: Mengirim status APPROVED, nomor rekening, dan informasi rekening aktif. 
+
+Sinkronisasi Balik: Data di MongoDB dan status di aplikasi mobile diperbarui menjadi APPROVED + No. Rekening, setoran terposting, dan proses Rekening Aktif (Selesai). 
+
+Jalur Reject:
+
+Penolakan: Status ditetapkan REJECTED beserta alasan penolakan, tanpa penerbitan rekening. 
+
+Kirim Notifikasi ke E-Collect: Memberikan informasi status penolakan dan alasannya. 
+
+Sinkronisasi Balik: Database MongoDB dan aplikasi mobile mencatat status REJECTED + Alasan, dan alur berakhir pada status Selesai (Gagal).
+UI/UX
+Screen
+Komponen Utama
+1. Menu
+Buka Tabungan Baru, Riwayat Pengajuan
+2. Produk & Kontak
+Produk Tabungan (master CBS), No. Handphone, Tujuan Pembukaan Rekening
+3. Foto e-KTP
+Camera, capture, preview, retake foto KTP
+4. OCR KTP
+NIK, Nama Lengkap, Tempat Lahir, Tanggal Lahir, Jenis Kelamin, Agama, Alamat KTP
+5. Data Tambahan
+Golongan Darah, Status Perkawinan, Pekerjaan, Kewarganegaraan, Penghasilan, Pendidikan Terakhir, Nama Ibu Kandung
+6. Alamat KTP
+Alamat Lengkap, RT, RW, Kelurahan/Desa, Kecamatan, Kota/Kabupaten, Provinsi, Kode Pos
+7. Alamat Domisili
+Sesuai KTP: Ya/Tidak; jika Tidak, input alamat domisili lengkap
+8. Tanda Tangan
+Signature pad, stylus/touch, Clear, Save, preview signature
+9. Setoran Awal
+Nominal Setoran Awal, Sumber Dana Setoran, validasi minimum sesuai produk
+10. Review & Submit
+Review seluruh data, Foto e-KTP, Signature, Setoran, Submit; GPS dan Timestamp diambil otomatis saat Submit
+11. Status Pengajuan
+PENDING APPROVAL, APPROVED + No. Rekening + Status Rekening, REJECTED + Alasan
+12. Riwayat
+Reference Number, Nasabah, Produk, Setoran, Status, Tanggal
+
+Aturan Validasi
+No. HP wajib valid.
+Foto e-KTP wajib tersedia.
+NIK wajib berhasil dibaca/diisi sebelum submit.
+Petugas dapat mengoreksi OCR dan perubahan dicatat di audit trail.
+Signature wajib sebelum submit.
+Setoran awal harus angka positif dan mengikuti minimum produk.
+GPS wajib tersedia saat submit sesuai kebijakan BPR.
+Submit hanya jika mandatory terpenuhi.
+No. rekening hanya tampil jika CBS mengembalikan APPROVED.
+Retry submit tidak boleh membuat pengajuan duplikat.
+Persyaratan Non Funsional 
+Kategori
+Requirement
+Security
+Data KTP, signature, token, dan data nasabah dilindungi saat transit dan storage.
+Authorization
+Petugas hanya melihat data sesuai role/branch.
+Reliability
+Idempotency untuk submit dan retry.
+Performance
+Loading/progress/timeout jelas untuk OCR dan API.
+Auditability
+Aktivitas penting tercatat.
+Device
+Mendukung kamera dan stylus/touch.
+Offline
+Jika diwajibkan BPR, draft dapat disimpan aman dan submit saat online.
+Privacy
+KTP/signature hanya digunakan sesuai tujuan dan kebijakan BPR.
+Kriteria Penerimaan
+ID
+Acceptance Criteria
+AC-01
+Petugas dapat membuat pengajuan tanpa mengisi KYC lengkap.
+AC-02
+OCR mengisi data identitas utama.
+AC-03
+Petugas dapat mengoreksi hasil OCR.
+AC-04
+Nasabah dapat tanda tangan dengan stylus.
+AC-05
+Petugas dapat input setoran awal.
+AC-06
+GPS dan timestamp tersimpan saat submit.
+AC-07
+Submit menghasilkan reference number + Pending Approval.
+AC-08
+Pengajuan diteruskan ke CBS.
+AC-09
+Approved menampilkan nomor rekening.
+AC-10
+Rejected menampilkan alasan.
+AC-11
+E-Collect tidak membuat nomor rekening sendiri.
+AC-12
+E-Collect tidak melakukan posting rekening secara langsung.
+AC-13
+Retry tidak membuat duplicate application.
+AC-14
+Audit trail tersedia.
+Baseline UAT
+ID
+Scenario
+Expected Result
+UAT-01
+Normal: OCR → signature → setoran → submit
+Pending Approval
+UAT-02
+OCR sebagian gagal
+Petugas dapat koreksi
+UAT-03
+Signature stylus
+Signature tersimpan
+UAT-04
+Setoran valid
+Nominal tersimpan
+UAT-05
+CBS approve
+No. Rekening tampil
+UAT-06
+CBS reject
+Alasan reject tampil
+UAT-07
+GPS gagal
+Submit ditahan/retry sesuai policy
+UAT-08
+Duplicate submit
+Tidak ada pengajuan duplikat
+Report & Monitoring
+Jumlah pengajuan per petugas/branch.
+Pending Approval.
+Approved.
+Rejected.
+Rekening aktif.
+Total nominal setoran awal yang dicatat.
+Rata-rata waktu submit → approval.
+API/integration failure.
+Pengajuan yang membutuhkan retry.
+Poin Terbuka / Catatan Keputusan
+No
+Topic
+Baseline / Decision
+1
+Setoran awal
+Dicatat di E-Collect; posting dilakukan CBS setelah rekening tersedia.
+2
+Approval notification
+Perlu dipilih: push notification, polling, atau kombinasi.
+3
+SMS rekening aktif
+Konfirmasi apakah CBS atau integration service yang mengirim.
+4
+Offline mode
+Konfirmasi kebutuhan offline untuk area pasar.
+5
+OCR provider
+Tentukan engine/vendor OCR.
+6
+Minimum KYC
+Finalisasi field minimum yang harus dikirim ke CBS.
+7
+Product master
+Tentukan source master produk dan minimum setoran.
+Lampiran
+Database_Design_API_Specification_ECollect_v1.0
+
+
+
+
+
+
+
+
+
+
+7. Dokumen Pengajuan & Persetujuan
+Dibuat di: Tangerang, 10 September 2026
+
+
+
+Disiapkan & Diajukan Oleh:PT. TEKNOLOGI OPERATOR PRIMA
+
+
+685165158750
+
+
+
+
+
+
+Deni Permana Riyadi
+
+
+Triana Rumapea
+
+
+Product Owner
+
+
+Direktur
+
+
+
+
+Disetujui & Diterima Oleh:PT. BPR IMA
+
+
+
+
+
+
+
+
+Handari jakar Hidayah
+
+
+Rachmat Kurniawan
+
+
+Direktur Operasional
+
+
+Direktur Utama
+

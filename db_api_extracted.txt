@@ -1,0 +1,936 @@
+
+DATABASE DESIGN & API SPECIFICATION
+E-COLLECT – PEMBUKAAN TABUNGAN BARU
+Lampiran PRDVersi 2.0 – PRD AlignedTOP Operator / E-CollectMongoDB • S3 Object Storage • REST API • CBS IntegrationTanggal: 01 Oktober 2026
+1. Document Control
+Item
+Detail
+Nama Dokumen
+Database Design & API Specification – E-Collect
+Versi
+2.0
+Status
+Baseline / Draft Implementasi – aligned dengan PRD v2.1
+Produk
+E-Collect – Pembukaan Tabungan Baru
+Database
+MongoDB TOP Operator
+Object Storage
+S3-compatible private object storage
+Core Banking
+CBS – MySQL (existing)
+Audience
+PO, SA, Backend, Mobile, QA, DevOps, Integration Team
+Relasi
+Lampiran PRD E-Collect Pembukaan Tabungan Baru v2.1
+2. Tujuan Dokumen
+Dokumen ini menerjemahkan baseline PRD terbaru menjadi desain teknis untuk collection MongoDB, penyimpanan dokumen S3, REST API E-Collect, dan kontrak integrasi CBS. Struktur data dan API mengikuti flow terbaru: Produk & Kontak → Foto e-KTP → OCR KTP → Data Tambahan → Alamat KTP → Alamat Domisili → Tanda Tangan → Setoran Awal → Review & Submit → Pending Approval → Verifikasi CBS → Approve/Reject → Rekening Aktif.
+Dokumen menjadi acuan FSD/TSD dan implementasi. Detail endpoint final CBS, authentication, timeout, queue, deployment, serta mapping field final tetap dikunci bersama tim CBS/vendor.
+3. Prinsip Arsitektur Data
+CBS adalah System of Record untuk Master Product Tabungan, CIF/KYC, verifikasi, rekening, dan transaksi.
+TOP Operator/E-Collect adalah System of Record untuk lifecycle aplikasi E-Collect, status history, audit aplikasi, dan metadata dokumen.
+Master Product Tabungan tidak dibuat ulang di MongoDB; E-Collect mengambilnya dari CBS melalui API/integration.
+Master user menggunakan master_users TOP Operator yang sudah ada; application menyimpan user_id dan snapshot actor.
+Foto e-KTP dan signature disimpan sebagai binary object pada private S3; MongoDB menyimpan metadata/object_key.
+Data OCR dapat dikoreksi petugas; perubahan hasil OCR harus tercatat pada audit log.
+Setoran awal dicatat di E-Collect; posting transaksi dilakukan oleh CBS setelah rekening berhasil dibuat.
+Alamat KTP dan alamat domisili disimpan terpisah; domicile.same_as_ktp digunakan untuk menandai apakah data domisili mengikuti KTP.
+Mobile tidak mengakses MongoDB/CBS secara langsung; semua akses melalui TOP Operator API.
+reference_no dan Idempotency-Key digunakan untuk mencegah duplicate submission/posting.
+Data sensitif dilindungi melalui authentication, authorization, encryption, access logging, retention, dan audit trail.
+4. Scope
+Area
+In Scope
+Out of Scope
+MongoDB
+Application, customer, OCR result/review, additional data, address KTP/domicile, status history, audit log
+Master CIF/rekening/transaksi CBS
+S3
+Foto KTP dan signature
+Dokumen di luar E-Collect
+Mobile API
+Product, application, KTP, OCR, customer/data tambahan, address, signature, deposit, review, submit, status, history
+Approval CBS langsung
+CBS Integration
+Product, submit application, callback, account result, initial deposit posting, notification event
+Perubahan internal schema CBS
+Security
+RBAC, audit, idempotency, sensitive-data protection
+Detail hardening infrastructure
+5. High-Level Architecture
+E-Collect Mobile      |      | HTTPS / REST      vTOP Operator / E-Collect API      |------ MongoDB      |------ S3 Private Object Storage      |      | Integration API      vCBS / CBS Integration Layer      |------ MySQL      |------ Master Product      |------ CIF / KYC      |------ Account      |------ Transaction
+6. System Responsibility
+System
+Responsibility
+E-Collect Mobile
+Capture data, OCR review/correction, additional data, address, signature, deposit input, review, submit, status/history.
+TOP Operator API
+Authentication, authorization, validation, lifecycle, audit, orchestration.
+MongoDB
+Persist E-Collect application, OCR/reviewed data, address, status, audit.
+S3
+Persist KTP/signature securely.
+Integration Layer
+Mapping, transformation, retry, idempotency, CBS communication.
+CBS
+Master product, CIF/KYC, verification, approval/reject, account creation, transaction posting, notification according to agreed contract.
+7. MongoDB Data Model
+Collection
+Purpose
+Relationship
+e_collect_applications
+Data utama pengajuan termasuk customer, OCR/review, additional data, alamat, signature, deposit, location dan CBS result
+Parent
+e_collect_status_histories
+Riwayat perubahan status
+Application 1:N
+e_collect_audit_logs
+Audit aktivitas/perubahan field
+Application 1:N
+Existing master yang dipakai: master_users di TOP Operator; Master Product Tabungan di CBS.
+8. Collection: e_collect_applications
+Field
+Type
+Req
+Index
+Description
+_id
+ObjectId/String
+Y
+PK
+Technical ID
+reference_no
+String
+Y
+UNIQUE
+Business reference
+status
+String
+Y
+IDX
+DRAFT / SUBMITTED / PENDING_APPROVAL / APPROVED / REJECTED / ACCOUNT_ACTIVE
+collector.user_id
+String
+Y
+IDX
+TOP Operator user reference
+collector.username/name/branch_id
+String
+N
+-
+Actor snapshot
+product.product_id
+String
+Y
+IDX
+CBS product ID
+product.product_code/name
+String
+Y
+-
+Product snapshot
+customer.nik
+String
+Y
+IDX
+NIK hasil OCR/review; diverifikasi CBS
+customer.name
+String
+Y
+-
+Nama Lengkap hasil OCR/review
+customer.birth_place
+String
+Y
+-
+Tempat Lahir hasil OCR/review
+customer.birth_date
+Date/String
+Y
+-
+Tanggal Lahir hasil OCR/review
+customer.gender
+String
+Y
+-
+Jenis Kelamin hasil OCR/review
+customer.religion
+String
+Y
+-
+Agama hasil OCR/review
+customer.phone_number
+String
+Y
+-
+No. Handphone manual
+additional_data.opening_purpose
+String
+N*
+-
+Tujuan Pembukaan Rekening
+additional_data.blood_type
+String
+N*
+-
+Golongan Darah; optional sesuai PRD/BPR
+additional_data.marital_status
+String
+N*
+-
+Status Perkawinan
+additional_data.occupation
+String
+N*
+-
+Pekerjaan
+additional_data.nationality
+String
+N*
+-
+Kewarganegaraan
+additional_data.income
+Decimal128/Number
+N*
+-
+Penghasilan
+additional_data.education
+String
+N*
+-
+Pendidikan Terakhir
+additional_data.mother_name
+String
+N*
+-
+Nama Ibu Kandung
+address_ktp.address
+String
+Y
+-
+Alamat KTP hasil OCR/review
+address_ktp.rt/rw
+String
+N*
+-
+RT/RW KTP
+address_ktp.village
+String
+N*
+-
+Kelurahan/Desa
+address_ktp.district
+String
+N*
+-
+Kecamatan
+address_ktp.city_regency
+String
+N*
+-
+Kota/Kabupaten
+address_ktp.province
+String
+N*
+-
+Provinsi
+address_ktp.postal_code
+String
+N*
+-
+Kode Pos
+domicile.same_as_ktp
+Boolean
+Y
+-
+Pilihan Sesuai KTP: Ya/Tidak
+domicile.address
+String
+N*
+-
+Alamat domisili jika berbeda
+domicile.rt/rw
+String
+N*
+-
+RT/RW domisili jika berbeda
+domicile.village/district
+String
+N*
+-
+Wilayah domisili jika berbeda
+domicile.city_regency/province
+String
+N*
+-
+Wilayah domisili jika berbeda
+domicile.postal_code
+String
+N*
+-
+Kode Pos domisili jika berbeda
+initial_deposit.amount
+Decimal128/Number
+Y
+-
+Nominal setoran awal
+initial_deposit.currency
+String
+Y
+-
+IDR
+initial_deposit.fund_source
+String
+Y*
+-
+Sumber Dana Setoran
+documents.ktp
+Object
+Y
+-
+S3 metadata/object_key
+documents.signature
+Object
+Y
+-
+S3 metadata/object_key + signature metadata
+location.latitude/longitude
+Double/Decimal
+Y*
+-
+GPS saat submit sesuai policy
+device_id
+String
+N
+IDX
+Device identifier
+cbs.status
+String
+N
+IDX
+CBS status
+cbs.cbs_reference_no
+String
+N
+IDX
+CBS reference
+cbs.cif_no
+String
+N
+IDX
+CIF
+cbs.account_number
+String
+N
+IDX
+Account number
+cbs.rejection_code/reason
+String
+N
+-
+Reject information
+timestamps.*
+Date
+Y/N
+IDX
+Lifecycle timestamps
+* Kewajiban field mengikuti PRD, KYC/product rule BPR, dan hasil final mapping CBS. Field OCR utama wajib setelah OCR/review; data tambahan tertentu dapat configurable.
+8.1 Example Document
+{  "_id": "ObjectId(...)",  "reference_no": "EC202610010001",  "status": "PENDING_APPROVAL",  "collector": {    "user_id": "USR001",    "username": "collector01",    "name": "Budi",    "branch_id": "BR001"  },  "product": {    "product_id": "TAB001",    "product_code": "TUM",    "product_name": "Tabungan Umum"  },  "customer": {    "nik": "327xxxxxxxxxxxxx",    "name": "Deni Permana",    "birth_place": "Jakarta",    "birth_date": "1990-01-01",    "gender": "L",    "religion": "ISLAM",    "phone_number": "08123456789"  },  "additional_data": {    "opening_purpose": "MENABUNG",    "blood_type": "O",    "marital_status": "BELUM_KAWIN",    "occupation": "PEDAGANG",    "nationality": "WNI",    "income": 5000000,    "education": "SMA",    "mother_name": "IBU KANDUNG"  },  "address_ktp": {    "address": "Jl. Contoh",    "rt": "001",    "rw": "002",    "village": "Mangun Jaya",    "district": "Tambun Selatan",    "city_regency": "Bekasi",    "province": "Jawa Barat",    "postal_code": "17510"  },  "domicile": {    "same_as_ktp": true,    "address": null,    "rt": null,    "rw": null,    "village": null,    "district": null,    "city_regency": null,    "province": null,    "postal_code": null  },  "initial_deposit": {    "amount": 100000,    "currency": "IDR",    "fund_source": "HASIL_USAHA"  },  "documents": {    "ktp": {      "storage": "S3",      "object_key": "e-collect/2026/10/01/EC202610010001/ktp/original.jpg"    },    "signature": {      "storage": "S3",      "object_key": "e-collect/2026/10/01/EC202610010001/signature/signature.png",      "signed_at": "2026-10-01T10:04:00+07:00"    }  },  "location": {    "latitude": -6.30123,    "longitude": 106.73421  },  "device_id": "DEVICE001",  "cbs": {    "status": "PENDING",    "cbs_reference_no": null,    "cif_no": null,    "account_number": null,    "rejection_code": null,    "rejection_reason": null  },  "timestamps": {    "created_at": "2026-10-01T10:00:00+07:00",    "submitted_at": "2026-10-01T10:05:00+07:00",    "approved_at": null,    "rejected_at": null,    "account_active_at": null  }}
+9. Collection: e_collect_status_histories
+Field
+Type
+Req
+Description
+_id
+ObjectId
+Y
+ID
+reference_no
+String
+Y
+Application reference
+from_status
+String
+N
+Previous status
+to_status
+String
+Y
+New status
+actor.user_id
+String
+Y
+Actor
+actor.name
+String
+N
+Actor snapshot
+source
+String
+Y
+ECOLLECT / CBS / SYSTEM
+remark
+String
+N
+Note
+cbs_reference_no
+String
+N
+CBS reference
+created_at
+Date
+Y
+Timestamp
+{  "reference_no": "EC202610010001",  "from_status": "SUBMITTED",  "to_status": "PENDING_APPROVAL",  "actor": {    "user_id": "USR001",    "name": "Budi"  },  "source": "ECOLLECT",  "remark": "Submitted to CBS",  "cbs_reference_no": "CBS-202610010001",  "created_at": "2026-10-01T10:06:00+07:00"}
+10. Collection: e_collect_audit_logs
+Field
+Type
+Req
+Description
+_id
+ObjectId
+Y
+ID
+reference_no
+String
+Y
+Application reference
+action
+String
+Y
+Action
+field
+String
+N
+Affected field
+old_value
+String/Object
+N
+Previous value
+new_value
+String/Object
+N
+New value
+actor.user_id
+String
+Y
+Actor
+actor.name
+String
+N
+Snapshot
+device_id
+String
+N
+Device
+ip_address
+String
+N
+Source IP if policy allows
+created_at
+Date
+Y
+Timestamp
+{  "reference_no": "EC202610010001",  "action": "OCR_CORRECTION",  "field": "customer.name",  "old_value": "DENI PERMAN",  "new_value": "DENI PERMANA",  "actor": {    "user_id": "USR001",    "name": "Budi"  },  "device_id": "DEVICE001",  "created_at": "2026-10-01T10:03:00+07:00"}
+11. MongoDB Index Baseline
+db.e_collect_applications.createIndex({reference_no:1},{unique:true})
+db.e_collect_applications.createIndex({"collector.user_id":1,"timestamps.created_at":-1})
+db.e_collect_applications.createIndex({status:1,"timestamps.created_at":-1})
+db.e_collect_applications.createIndex({"customer.nik":1})
+db.e_collect_applications.createIndex({"cbs.cif_no":1})
+db.e_collect_applications.createIndex({"cbs.account_number":1})
+db.e_collect_applications.createIndex({"product.product_id":1,"status":1})
+db.e_collect_status_histories.createIndex({reference_no:1,created_at:1})
+db.e_collect_audit_logs.createIndex({reference_no:1,created_at:1})
+12. S3 Object Storage Design
+Object
+Path Pattern
+Access
+KTP
+e-collect/YYYY/MM/DD/{reference_no}/ktp/original.jpg
+Private; backend/signed URL
+Signature
+e-collect/YYYY/MM/DD/{reference_no}/signature/signature.png
+Private; backend/signed URL
+Bucket private; public access disabled.
+TLS in transit and encryption at rest.
+Least-privilege IAM/RBAC.
+Access logging/audit.
+Retention/lifecycle mengikuti keputusan BPR/Compliance.
+Jangan memakai NIK sebagai object key.
+13. REST API Catalogue
+ID
+Method
+Endpoint
+Purpose
+API-01
+GET
+/api/v1/e-collect/master/savings-products
+Product list
+API-02
+POST
+/api/v1/e-collect/applications
+Create draft
+API-03
+PUT
+/api/v1/e-collect/applications/{reference_no}/customer
+Customer + data tambahan
+API-04
+POST
+/api/v1/e-collect/applications/{reference_no}/documents/ktp
+Upload KTP
+API-05
+POST
+/api/v1/e-collect/applications/{reference_no}/ocr/ktp
+OCR KTP
+API-06
+POST
+/api/v1/e-collect/applications/{reference_no}/documents/signature
+Upload signature
+API-07
+PUT
+/api/v1/e-collect/applications/{reference_no}/address
+Save KTP + domicile address
+API-08
+PUT
+/api/v1/e-collect/applications/{reference_no}/initial-deposit
+Save deposit + fund source
+API-09
+PUT
+/api/v1/e-collect/applications/{reference_no}/location
+Save GPS
+API-10
+GET
+/api/v1/e-collect/applications/{reference_no}
+Review/detail
+API-11
+POST
+/api/v1/e-collect/applications/{reference_no}/submit
+Submit
+API-12
+GET
+/api/v1/e-collect/applications/{reference_no}/status
+Status
+API-13
+GET
+/api/v1/e-collect/applications/{reference_no}/history
+History
+API-14
+GET
+/api/v1/e-collect/applications
+List applications
+14. Common API Header
+Authorization: Bearer <access_token>Content-Type: application/jsonX-Request-ID: REQ-202610010001X-Device-ID: DEVICE001X-App-Version: 1.0.0Idempotency-Key: EC202610010001-SUBMIT-001
+15. API-01 Get Savings Products
+GET /api/v1/e-collect/master/savings-products?channel=ECOLLECT&status=ACTIVE{  "success": true,  "data": [    {      "product_id": "TAB001",      "product_code": "TUM",      "product_name": "Tabungan Umum",      "currency": "IDR",      "minimum_initial_deposit": 100000,      "status": "ACTIVE"    }  ]}
+16. API-02 Create Draft
+POST /api/v1/e-collect/applications{  "product_id": "TAB001",  "phone_number": "08123456789",  "opening_purpose": "MENABUNG"}
+17. API-03 Save Customer & Data Tambahan
+PUT /api/v1/e-collect/applications/EC202610010001/customer{  "customer": {    "nik": "327xxxxxxxxxxxxx",    "name": "Deni Permana",    "birth_place": "Jakarta",    "birth_date": "1990-01-01",    "gender": "L",    "religion": "ISLAM",    "phone_number": "08123456789"  },  "additional_data": {    "opening_purpose": "MENABUNG",    "blood_type": "O",    "marital_status": "BELUM_KAWIN",    "occupation": "PEDAGANG",    "nationality": "WNI",    "income": 5000000,    "education": "SMA",    "mother_name": "IBU KANDUNG"  }}
+18. API-04 Upload KTP
+POST /api/v1/e-collect/applications/EC202610010001/documents/ktpContent-Type: multipart/form-datafile=<KTP image>
+19. API-05 OCR KTP
+POST /api/v1/e-collect/applications/EC202610010001/ocr/ktp{  "success": true,  "data": {    "nik": "327xxxxxxxxxxxxx",    "name": "Deni Permana",    "birth_place": "Jakarta",    "birth_date": "1990-01-01",    "gender": "L",    "religion": "ISLAM",    "address": "Jl. Contoh",    "confidence": {      "nik": 0.99,      "name": 0.96    }  }}
+OCR result harus dapat di-review/koreksi oleh petugas sebelum submit. Koreksi dicatat pada e_collect_audit_logs.
+20. API-06 Upload Signature
+POST /api/v1/e-collect/applications/EC202610010001/documents/signatureContent-Type: multipart/form-datafile=<signature image>Metadata yang disimpan:- signed_at- device_id- collector.user_id
+21. API-07 Save Address
+PUT /api/v1/e-collect/applications/EC202610010001/address{  "address_ktp": {    "address": "Jl. Contoh",    "rt": "001",    "rw": "002",    "village": "Mangun Jaya",    "district": "Tambun Selatan",    "city_regency": "Bekasi",    "province": "Jawa Barat",    "postal_code": "17510"  },  "domicile": {    "same_as_ktp": true  }}Jika same_as_ktp=false, field alamat domisili wajib diisi sesuai rule BPR.
+22. API-08 Save Initial Deposit
+PUT /api/v1/e-collect/applications/EC202610010001/initial-deposit{  "amount": 100000,  "currency": "IDR",  "fund_source": "HASIL_USAHA"}
+Catatan: data setoran awal dicatat oleh E-Collect. Posting dana dilakukan CBS setelah rekening berhasil dibuat.
+23. API-09 Save Location
+PUT /api/v1/e-collect/applications/EC202610010001/location{  "latitude": -6.30123,  "longitude": 106.73421}
+24. API-10 Get Detail / Review
+GET /api/v1/e-collect/applications/EC202610010001{  "success": true,  "data": {    "reference_no": "EC202610010001",    "status": "DRAFT",    "product": {"product_id": "TAB001","product_name": "Tabungan Umum"},    "customer": {"nik": "327xxxxxxxxxxxxx","name": "Deni Permana"},    "additional_data": {},    "address_ktp": {},    "domicile": {},    "initial_deposit": {},    "documents": {},    "location": {}  }}
+25. API-11 Submit
+POST /api/v1/e-collect/applications/EC202610010001/submit{  "confirmation": true}
+26. API-12 Status
+GET /api/v1/e-collect/applications/EC202610010001/status{  "success": true,  "data": {    "reference_no": "EC202610010001",    "status": "ACCOUNT_ACTIVE",    "cbs_status": "APPROVED",    "cif_no": "CIF000123",    "account_number": "1234567890"  }}
+27. API-13 History
+GET /api/v1/e-collect/applications/EC202610010001/history
+28. API-14 List
+GET /api/v1/e-collect/applications?page=1&page_size=20&status=PENDING_APPROVAL
+29. CBS Integration API Catalogue
+ID
+Direction
+Method
+Logical Endpoint
+Purpose
+INT-01
+TOP→CBS
+GET
+/integration/cbs/v1/savings-products
+Product list
+INT-02
+TOP→CBS
+POST
+/integration/cbs/v1/savings-account/applications
+Submit complete application
+INT-03
+CBS→TOP
+POST
+/integration/cbs/v1/savings-account/application-result
+Approve/reject/account result
+INT-04
+TOP→CBS
+POST
+/integration/cbs/v1/accounts/{account_number}/initial-deposit
+Post deposit after account creation
+INT-05
+CBS→TOP
+POST
+/integration/notification
+Optional notification event
+30. INT-01 Product
+GET /integration/cbs/v1/savings-products?channel=ECOLLECT&status=ACTIVE
+31. INT-02 Submit to CBS
+POST /integration/cbs/v1/savings-account/applications{  "reference_no": "EC202610010001",  "channel": "ECOLLECT",  "collector": {"user_id":"USR001","branch_id":"BR001"},  "product": {"product_id":"TAB001","product_code":"TUM"},  "customer": {    "nik":"327xxxxxxxxxxxxx","name":"Deni Permana",    "birth_place":"Jakarta","birth_date":"1990-01-01",    "gender":"L","religion":"ISLAM","phone_number":"08123456789"  },  "additional_data": {    "opening_purpose":"MENABUNG","blood_type":"O",    "marital_status":"BELUM_KAWIN","occupation":"PEDAGANG",    "nationality":"WNI","income":5000000,"education":"SMA",    "mother_name":"IBU KANDUNG"  },  "address_ktp": {    "address":"Jl. Contoh","rt":"001","rw":"002",    "village":"Mangun Jaya","district":"Tambun Selatan",    "city_regency":"Bekasi","province":"Jawa Barat","postal_code":"17510"  },  "domicile": {"same_as_ktp":true},  "initial_deposit": {"amount":100000,"currency":"IDR","fund_source":"HASIL_USAHA"},  "documents": {    "ktp":{"object_key":"e-collect/2026/10/01/EC202610010001/ktp/original.jpg"},    "signature":{"object_key":"e-collect/2026/10/01/EC202610010001/signature/signature.png"}  },  "location":{"latitude":-6.30123,"longitude":106.73421}}
+32. INT-03 CBS Callback
+POST /integration/cbs/v1/savings-account/application-resultAPPROVED:{  "reference_no":"EC202610010001",  "cbs_reference_no":"CBS-202610010001",  "status":"APPROVED",  "cif_no":"CIF000123",  "account_number":"1234567890",  "rejection_code":null,  "rejection_reason":null,  "processed_at":"2026-10-01T11:00:00+07:00"}REJECTED:{  "reference_no":"EC202610010002",  "cbs_reference_no":"CBS-202610010002",  "status":"REJECTED",  "cif_no":null,  "account_number":null,  "rejection_code":"KYC_001",  "rejection_reason":"Data identitas tidak sesuai",  "processed_at":"2026-10-01T11:00:00+07:00"}
+33. INT-04 Initial Deposit Posting
+POST /integration/cbs/v1/accounts/1234567890/initial-deposit{  "reference_no":"EC202610010001",  "account_number":"1234567890",  "amount":100000,  "currency":"IDR"}
+Posting hanya dilakukan setelah account_number valid dari CBS. Request wajib idempotent agar retry tidak menggandakan transaksi.
+34. Status Lifecycle
+Status
+Meaning
+Next
+DRAFT
+Pengajuan sedang diisi
+SUBMITTED
+SUBMITTED
+Pengajuan berhasil dikirim dari mobile ke TOP Operator
+PENDING_APPROVAL
+PENDING_APPROVAL
+Menunggu verifikasi/approval CBS
+APPROVED / REJECTED
+APPROVED
+CBS menyetujui dan nomor rekening tersedia
+ACCOUNT_ACTIVE
+REJECTED
+CBS menolak; alasan tersedia
+END / REVISI sesuai rule BPR
+ACCOUNT_ACTIVE
+Rekening aktif dan hasil account tersedia
+END
+35. Validation Rules
+ID
+Rule
+Owner
+V-01
+Product ACTIVE dan eligible channel ECOLLECT
+TOP + CBS
+V-02
+NIK tersedia dan valid sesuai rule
+TOP
+V-03
+No. Handphone valid menurut format BPR
+TOP
+V-04
+Foto KTP dan signature tersedia sebelum submit
+TOP
+V-05
+Field OCR utama telah terisi setelah OCR/review
+TOP
+V-06
+Data tambahan wajib sesuai konfigurasi BPR/product
+TOP + CBS
+V-07
+Alamat KTP wajib lengkap sesuai mandatory CBS/BPR
+TOP + CBS
+V-08
+Jika domicile.same_as_ktp=false, alamat domisili wajib lengkap
+TOP
+V-09
+Deposit >= minimum product
+TOP + CBS
+V-10
+GPS tersedia jika diwajibkan policy
+TOP
+V-11
+Duplicate customer/account check
+CBS
+V-12
+Account number hanya berasal dari CBS
+CBS
+V-13
+Posting hanya setelah account valid
+CBS
+V-14
+Duplicate submit dicegah idempotency
+TOP + Integration
+36. Standard Error Response
+{  "success": false,  "error": {    "code": "ECOLLECT_VALIDATION_001",    "message": "Alamat domisili wajib diisi",    "details": [      {"field":"domicile.address","reason":"REQUIRED"}    ]  },  "request_id":"REQ-202610010001"}
+HTTP
+Meaning
+400
+Validation error
+401
+Unauthorized
+403
+Forbidden
+404
+Not found
+409
+Duplicate/idempotency conflict
+422
+Business rule
+429
+Rate limit
+500
+Internal error
+502/503
+CBS/integration unavailable
+37. Security & Access Control
+Role
+Baseline
+Collector
+Create/read/update own DRAFT; view own submitted/status/history.
+Supervisor
+View according to branch/role policy.
+Back Office/Teller
+Access required application/documents for verification and approval according to CBS role.
+Admin
+Administration; sensitive document access controlled and audited.
+Developer/QA
+No production document access unless explicitly authorized; use masked/test data.
+HTTPS/TLS.
+Private S3; least privilege IAM.
+No raw KTP/token/full NIK in normal logs.
+Mask sensitive data in monitoring.
+Signed URL/backend-controlled document access.
+Audit sensitive document view/download when required.
+38. Data Mapping E-Collect → CBS
+E-Collect
+CBS Logical Field
+Source/Notes
+product.product_id
+Product ID
+CBS master
+customer.nik
+No. Identitas
+OCR/review; CBS verifies
+customer.name
+Nama Lengkap
+OCR/review
+customer.birth_place
+Tempat Lahir
+OCR/review
+customer.birth_date
+Tanggal Lahir
+OCR/review
+customer.gender
+Jenis Kelamin
+OCR/review
+customer.religion
+Agama
+OCR/review
+customer.phone_number
+No. Handphone
+Manual
+additional_data.opening_purpose
+Tujuan Pembukaan Rekening
+Manual; final mapping
+additional_data.blood_type
+Golongan Darah
+Manual; configurable
+additional_data.marital_status
+Status Perkawinan
+Manual; configurable
+additional_data.occupation
+Pekerjaan
+Manual; final mapping
+additional_data.nationality
+Kewarganegaraan
+Manual; configurable
+additional_data.income
+Penghasilan
+Manual; configurable
+additional_data.education
+Pendidikan Terakhir
+Manual; configurable
+additional_data.mother_name
+Nama Ibu Kandung
+Manual; configurable
+address_ktp.*
+Alamat KTP terstruktur
+OCR + manual correction; final CBS mapping
+domicile.*
+Alamat Domisili
+Manual/Copy KTP; final CBS mapping
+initial_deposit.amount
+Initial Deposit
+Posted after account creation
+initial_deposit.fund_source
+Sumber Dana Setoran
+Manual; final mapping
+documents.ktp/signature
+Document attachment
+S3 reference; retrieval contract TBD
+location.*
+GPS
+Captured on submit
+cbs.cif_no
+CIF
+Returned CBS
+cbs.account_number
+Account Number
+Returned CBS
+39. End-to-End Sequence
+1. Mobile → TOP API: GET active savings products.
+2. TOP API → CBS: GET product master → return product list.
+3. Mobile → TOP API: Create DRAFT with product/contact.
+4. Mobile → TOP API: Upload KTP → TOP stores KTP in S3.
+5. Mobile → TOP API: OCR KTP → return OCR fields.
+6. Mobile: Petugas review/correction OCR.
+7. Mobile → TOP API: Save additional customer data.
+8. Mobile → TOP API: Save address KTP and domicile.
+9. Mobile → TOP API: Upload signature → S3.
+10. Mobile → TOP API: Save initial deposit + fund source.
+11. Mobile → TOP API: Save GPS.
+12. Mobile: Review & Submit.
+13. TOP API → MongoDB: update SUBMITTED/PENDING_APPROVAL.
+14. TOP API → CBS: submit complete application.
+15. CBS: verification/KYC/CIF/duplicate/product validation.
+16. CBS → TOP API: callback APPROVED/REJECTED.
+17. TOP API → MongoDB: update status/history/audit.
+18. Mobile → TOP API: Get status/history.
+19. If APPROVED: CBS creates account / returns account number.
+20. CBS/TOP: initial deposit posting according to agreed integration.
+21. CBS/TOP: transaction result.
+22. TOP → Mobile: ACCOUNT_ACTIVE + account number, or REJECTED + reason.
+40. Idempotency, Retry & Resilience
+reference_no immutable dan unique.
+Submit dengan reference yang sama tidak membuat application kedua.
+Initial Deposit Posting menggunakan unique transaction/reference key untuk mencegah double posting.
+Timeout CBS tidak otomatis berarti REJECTED; status tetap pending/processing sampai hasil pasti.
+Retry hanya untuk technical/retryable errors, bukan business rejection.
+CBS callback idempotent; callback duplikat tidak menggandakan perubahan.
+Semua integration request memakai correlation/request ID.
+41. UAT/API Test Baseline
+ID
+Scenario
+Expected
+API-UAT-01
+Get active products
+Eligible products returned
+API-UAT-02
+Create draft with product/contact
+Reference + DRAFT
+API-UAT-03
+Upload KTP
+S3 object + metadata
+API-UAT-04
+OCR success
+NIK/name/TTL/gender/religion/address populated
+API-UAT-05
+OCR correction
+Correction audited
+API-UAT-06
+Additional data
+Data tambahan tersimpan sesuai konfigurasi
+API-UAT-07
+KTP address
+Address structured data saved
+API-UAT-08
+Domicile same as KTP
+same_as_ktp=true; no duplicate manual address required
+API-UAT-09
+Domicile different
+Complete domicile data required
+API-UAT-10
+Signature
+S3 object + metadata
+API-UAT-11
+Deposit below minimum
+Rejected
+API-UAT-12
+Submit complete
+PENDING_APPROVAL
+API-UAT-13
+Duplicate submit
+No duplicate CBS application
+API-UAT-14
+CBS approve
+CIF/account saved
+API-UAT-15
+CBS reject
+Code/reason saved
+API-UAT-16
+Deposit retry
+No double posting
+API-UAT-17
+Unauthorized document
+403/denied
+API-UAT-18
+History
+Complete lifecycle visible
+42. Compliance & Data Governance Decision Points
+Penyimpanan KTP di S3 TOP Operator perlu dikunci oleh BPR/Compliance/Legal/DPO berdasarkan peran para pihak, tujuan dan dasar pemrosesan, instruksi/kontrak, akses, keamanan, retensi, serta mekanisme penghapusan.
+Decision
+Baseline
+Status
+KTP storage
+Private S3 TOP Operator
+OPEN – Compliance confirmation
+Retention
+Mengikuti policy BPR/regulasi
+OPEN
+Controller/Processor role
+Ditentukan berdasarkan hubungan dan aktivitas pemrosesan
+OPEN
+Access
+Collector own application; authorized Back Office; audited
+BASELINE
+Deletion
+Lifecycle mengikuti retention policy
+OPEN
+43. Open Points for FSD/TSD
+Final CBS endpoint, authentication, timeout, and callback security.
+Exact CBS field mapping and mandatory KYC fields, khususnya field data tambahan dan alamat.
+Whether minimum initial deposit is provided by CBS product API.
+OCR provider and exact OCR contract.
+S3 provider, bucket, encryption, signed URL and lifecycle.
+Retention/deletion policy for KTP/signature and BPR compliance approval.
+Notification mechanism untuk status APPROVED/REJECTED.
+Offline mode requirements.
+Actual initial-deposit collection channel and reconciliation.
+Final status/error mapping CBS ↔ TOP Operator ↔ Mobile.
+44. Implementation Sequence
+Phase
+Work
+1
+Review existing master_users and CBS Product API contract.
+2
+Create/update e_collect_applications sesuai customer, additional_data, address_ktp, domicile, deposit, documents, location.
+3
+Create e_collect_status_histories.
+4
+Create e_collect_audit_logs.
+5
+Configure S3 and access policy.
+6
+Implement master product API.
+7
+Implement application/customer/additional-data/address/document/OCR/deposit/location APIs.
+8
+Implement review/submit/status/history APIs.
+9
+Implement CBS integration and callback.
+10
+Implement account result and initial deposit posting.
+11
+Security, audit, retry, idempotency.
+12
+SIT/UAT and production readiness.
+45. Change Log
+Version
+Date
+Change
+1.0
+01-Oct-2026
+Initial baseline database and API specification.
+2.0
+01-Oct-2026
+Aligned dengan PRD v2.1: field Produk & Kontak, OCR KTP, Data Tambahan, Alamat KTP, Alamat Domisili, Signature, Setoran Awal, Review & Submit, status/history, MongoDB schema, API payload, CBS mapping, validation, dan UAT.
